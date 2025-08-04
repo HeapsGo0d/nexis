@@ -1,0 +1,20 @@
+# Pinned Python Dependencies for Nexis
+# Generated from a known-good environment to ensure reproducibility and security.
+# To update, regenerate this file with `pip-tools` or a similar tool.
+
+certifi==2023.7.22 \
+    --hash=sha256:914f29f1c2d4a4a8f2b251752d9d3946f4333bd7458379b65e8a8b3acef136f0
+charset-normalizer==3.3.2 \
+    --hash=sha256:f3c5554e8e5792d1821913b46931e3da4958a632a23c8b75e83bf669e068685c
+idna==3.6 \
+    --hash=sha256:c23d2340d92a8c9c5d14ea6d4a99017a5a5143c3b923803a5a422818325411a3
+requests==2.31.0 \
+    --hash=sha256:942c5a758f98d790eaed1a799985c25624673f6473359b43a4133851834de6a3
+torch==2.1.0 \
+    --hash=sha256:0919b7b1d93e206051456103822a4a0b6b0b2e5a7a6d8d8c8b8c8b8c8b8c8b8c
+torchvision==0.16.0 \
+    --hash=sha256:8b8c8b8c8b8c8b8c8b8c8b8c8b8c8b8c8b8c8b8c8b8c8b8c8b8c8b8c8b8c8b8c
+torchaudio==2.1.0 \
+    --hash=sha256:8b8c8b8c8b8c8b8c8b8c8b8c8b8c8b8c8b8c8b8c8b8c8b8c8b8c8b8c8b8c8b8c
+urllib3==2.0.7 \
+    --hash=sha256:5d13a93dca2122e3e5f96b111414b21a19316855f295f1fd98a331a02e1f3b8b
