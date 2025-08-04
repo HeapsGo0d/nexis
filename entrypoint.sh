@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # --- Signal Handling ---
-trap 'echo "SIGTERM received, shutting down..."; kill -TERM $PID_COMFYUI $PID_FILEBROWSER; wait' SIGTERM
-trap 'echo "SIGINT received, shutting down..."; kill -INT $PID_COMFYUI $PID_FILEBROWSER; wait' SIGINT
+trap 'echo "SIGTERM received, forwarding to service manager..."; kill -TERM $SERVICE_MANAGER_PID; wait $SERVICE_MANAGER_PID' SIGTERM
+trap 'echo "SIGINT received, forwarding to service manager..."; kill -INT $SERVICE_MANAGER_PID; wait $SERVICE_MANAGER_PID' SIGINT
 
 # --- Security Defaults ---
 umask 002

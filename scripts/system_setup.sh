@@ -3,11 +3,19 @@
 # --- GPU Detection ---
 echo "--- GPU Information ---"
 nvidia-smi
+if [ $? -ne 0 ]; then
+    echo "ERROR: nvidia-smi failed - GPU may not be properly configured"
+    exit 1
+fi
 echo "---------------------"
 
 # --- CUDA Validation ---
 echo "--- CUDA Version ---"
 nvcc --version
+if [ $? -ne 0 ]; then
+    echo "ERROR: nvcc not found - CUDA may not be properly installed"
+    exit 1
+fi
 echo "--------------------"
 
 # --- Directory Setup ---

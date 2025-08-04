@@ -26,9 +26,11 @@ Nexis is a lean, high-performance, and production-ready RunPod template for Comf
 
 | Variable              | Description                                       | Default |
 | --------------------- | ------------------------------------------------- | ------- |
-| `CIVITAI_MODEL_DOWNLOAD` | Comma-separated list of Civitai model URLs.       | `""`      |
-| `HF_MODEL_DOWNLOAD`   | Comma-separated list of HuggingFace repo IDs.     | `""`      |
-| `HF_TOKEN`            | Your HuggingFace read token for private models.   | `""`      |
+| `CIVITAI_CHECKPOINTS_TO_DOWNLOAD` | Comma-separated list of Civitai model URLs for checkpoints. | `""`      |
+| `CIVITAI_LORAS_TO_DOWNLOAD` | Comma-separated list of Civitai model URLs for LoRAs. | `""`      |
+| `CIVITAI_VAES_TO_DOWNLOAD` | Comma-separated list of Civitai model URLs for VAEs. | `""`      |
+| `HF_REPOS_TO_DOWNLOAD`   | Comma-separated list of HuggingFace repo IDs.     | `""`      |
+| `HUGGINGFACE_TOKEN`            | Your HuggingFace read token for private models.   | `""`      |
 
 ### Advanced Configuration
 
@@ -36,29 +38,67 @@ Nexis is a lean, high-performance, and production-ready RunPod template for Comf
 | --------------------- | ------------------------------------------------- | ------------ |
 | `COMFYUI_FLAGS`       | Additional command-line flags for ComfyUI.        | `--bf16-unet` |
 | `FILEBROWSER_CONFIG`  | Path to a custom FileBrowser configuration file.  | `""`           |
+| `FB_USERNAME`         | Username for FileBrowser authentication.           | `""`           |
+| `FB_PASSWORD`         | Password for FileBrowser authentication.           | `""`           |
 
 ## Model Download Examples
 
-### Civitai
+### Civitai Models
 
-Set `CIVITAI_MODEL_DOWNLOAD` to a comma-separated list of model URLs:
+The system supports downloading different types of Civitai models into their respective directories. All Civitai variables expect **full download URLs**, not model IDs.
+
+#### Checkpoints (Main Models)
+Set `CIVITAI_CHECKPOINTS_TO_DOWNLOAD` to a comma-separated list of Civitai download URLs:
+```
+CIVITAI_CHECKPOINTS_TO_DOWNLOAD="https://civitai.com/api/download/models/12345,https://civitai.com/api/download/models/67890"
+```
+
+#### LoRAs
+Set `CIVITAI_LORAS_TO_DOWNLOAD` to a comma-separated list of Civitai download URLs:
+```
+CIVITAI_LORAS_TO_DOWNLOAD="https://civitai.com/api/download/models/11111,https://civitai.com/api/download/models/22222"
+```
+
+#### VAEs
+Set `CIVITAI_VAES_TO_DOWNLOAD` to a comma-separated list of Civitai download URLs:
+```
+CIVITAI_VAES_TO_DOWNLOAD="https://civitai.com/api/download/models/33333,https://civitai.com/api/download/models/44444"
+```
+
+**Note**: Civitai URLs must be the full download URLs (e.g., `https://civitai.com/api/download/models/XXXXX`), not model IDs or page URLs.
+
+### HuggingFace Models
+
+Set `HF_REPOS_TO_DOWNLOAD` to a comma-separated list of HuggingFace repository IDs. The script will use `git-lfs` to clone them.
 
 ```
-CIVITAI_MODEL_DOWNLOAD="https://civitai.com/api/download/models/12345,https://civitai.com/api/download/models/67890"
+HF_REPOS_TO_DOWNLOAD="stabilityai/stable-diffusion-xl-base-1.0,stabilityai/sdxl-vae"
 ```
 
-### HuggingFace
+**Note**: HuggingFace variables expect repository IDs (e.g., `username/model-name`), not full URLs.
 
-Set `HF_MODEL_DOWNLOAD` to a comma-separated list of HuggingFace repository IDs. The script will use `git-lfs` to clone them.
+## FileBrowser Authentication
 
+FileBrowser supports basic authentication using username and password. To enable authentication:
+
+1.  Set the `FB_USERNAME` environment variable to your desired username.
+2.  Set the `FB_PASSWORD` environment variable to your desired password.
+
+Example:
 ```
-HF_MODEL_DOWNLOAD="stabilityai/stable-diffusion-xl-base-1.0,stabilityai/sdxl-vae"
+FB_USERNAME=admin
+FB_PASSWORD=your_secure_password
 ```
+
+**Security Notes**:
+-   If either `FB_USERNAME` or `FB_PASSWORD` is not set, FileBrowser will run without authentication.
+-   Use strong passwords and consider using RunPod's environment variable secrets for managing these credentials.
+-   Authentication is applied to all FileBrowser access on port 8080.
 
 ## Troubleshooting
 
 -   **502 Bad Gateway**: ComfyUI or FileBrowser may be starting up. Wait a few minutes and refresh.
--   **Download Failures**: Check your `HF_TOKEN` and ensure the model URLs/IDs are correct.
+-   **Download Failures**: Check your `HUGGINGFACE_TOKEN` and ensure the model URLs/IDs are correct.
 -   **GPU Errors**: Ensure your pod is configured with a compatible NVIDIA GPU (RTX 4090/5090 series).
 
 ## Performance Optimization (RTX 5090)
@@ -73,7 +113,7 @@ The default `COMFYUI_FLAGS` are set to `--bf16-unet` for improved performance on
 
 -   **Non-Root User**: The container runs as a non-root user (`comfyuser`) for improved security.
 -   **Minimal Dependencies**: The Docker image includes only essential system packages to reduce the attack surface.
--   **Secrets**: Use RunPod's environment variable secrets for managing `HF_TOKEN`.
+-   **Secrets**: Use RunPod's environment variable secrets for managing `HUGGINGFACE_TOKEN`.
 
 ## Comparison with Phoenix
 

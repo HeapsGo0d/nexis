@@ -1,0 +1,6 @@
+[submodule "reference/comfyui-flux-template"]
+	path = reference/comfyui-flux-template
+	url = https://github.com/Hearmeman24/comfyui-flux-template
+[submodule "reference/CivitAI_Downloader"]
+	path = reference/CivitAI_Downloader
+	url = https://github.com/Hearmeman24/CivitAI_Downloader
