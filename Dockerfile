@@ -18,7 +18,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     python3.11 python3.11-venv python3.11-dev \
     build-essential gcc ninja-build \
     git curl jq aria2 git-lfs \
-    ffmpeg libgl1 libglib2.0-0 wget vim && \
+    ffmpeg libgl1 libglib2.0-0 wget vim \
+    cuda-toolkit-12-8 && \
+    echo "/usr/local/cuda-12.8/lib64" > /etc/ld.so.conf.d/cuda.conf && \
+    echo "/usr/local/cuda-12.8/targets/x86_64-linux/lib" >> /etc/ld.so.conf.d/cuda.conf && \
+    ldconfig && \
     ln -sf /usr/bin/python3.11 /usr/bin/python && \
     ln -sf /usr/bin/python3.11 /usr/bin/python3 && \
     rm -rf /var/lib/apt/lists/*
@@ -29,10 +33,10 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Install PyTorch with CUDA 12.8 support first (explicit version control)
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install torch==2.5.1+cu128 torchvision==0.20.1+cu128 torchaudio==2.5.1+cu128 \
+    pip install torch==2.7.1+cu128 torchvision==0.22.1+cu128 torchaudio==2.7.1+cu128 \
     --index-url https://download.pytorch.org/whl/cu128 \
     --no-deps && \
-    pip install numpy pillow requests tqdm psutil
+    pip install numpy pillow requests tqdm psutil typing_extensions
 
 # Validate PyTorch CUDA 12.8 support
 RUN python -c "import torch; assert torch.cuda.is_available(), 'CUDA not available in PyTorch'; print(f'PyTorch CUDA version: {torch.version.cuda}')"
@@ -77,7 +81,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get install -y --no-install-recommends \
     python3.11 python3.11-venv \
     git curl jq aria2 git-lfs \
-    ffmpeg libgl1 libglib2.0-0 && \
+    ffmpeg libgl1 libglib2.0-0 \
+    cuda-toolkit-12-8 && \
+    echo "/usr/local/cuda-12.8/lib64" > /etc/ld.so.conf.d/cuda.conf && \
+    echo "/usr/local/cuda-12.8/targets/x86_64-linux/lib" >> /etc/ld.so.conf.d/cuda.conf && \
+    ldconfig && \
     ln -sf /usr/bin/python3.11 /usr/bin/python && \
     ln -sf /usr/bin/python3.11 /usr/bin/python3 && \
     rm -rf /var/lib/apt/lists/*

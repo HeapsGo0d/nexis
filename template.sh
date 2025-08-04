@@ -49,7 +49,7 @@ A lean, high-performance, and production-ready RunPod template for ComfyUI, opti
 
 ### 🧰 Technical Specifications:
 - **Base Image**: `nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04`
-- **Default Temp Storage**: 50 GB
+- **Default Temp Storage**: 150 GB
 EOF
 )
 
@@ -77,7 +77,7 @@ done
 PAYLOAD=$(jq -n \
   --arg name "$TEMPLATE_NAME" \
   --arg imageName "$IMAGE_NAME" \
-  --argjson cDisk 50 \
+  --argjson cDisk 150 \
   --argjson vGb 0 \
   --arg vPath "/runpod-volume" \
   --arg dArgs "$docker_args" \
