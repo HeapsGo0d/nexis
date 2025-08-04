@@ -12,7 +12,7 @@ echo "Checking Python version..."
 PYTHON_VERSION=$(python --version 2>&1 | cut -d' ' -f2)
 echo "Python version: $PYTHON_VERSION"
 
-# Check PyTorch installation
+# Check PyTorch installation (with runtime GPU check)
 echo "Checking PyTorch installation..."
 python -c "
 import torch
@@ -24,7 +24,8 @@ if torch.cuda.is_available():
     for i in range(torch.cuda.device_count()):
         print(f'GPU {i}: {torch.cuda.get_device_name(i)}')
 else:
-    print('WARNING: CUDA not available')
+    print('INFO: CUDA not available at build time (expected in Docker build)')
+    print('CUDA availability will be verified at runtime')
 "
 
 # Check torchvision
@@ -86,7 +87,7 @@ else
     exit 1
 fi
 
-# Test ComfyUI import
+# Test ComfyUI import (basic import test only)
 echo "Testing ComfyUI import..."
 cd "$COMFYUI_PATH"
 python -c "
@@ -131,3 +132,4 @@ print('Dependency conflict check complete')
 
 echo "=== Validation Complete ==="
 echo "All dependency checks passed successfully!"
+echo "Note: GPU functionality will be verified at runtime when container starts with GPU access"
