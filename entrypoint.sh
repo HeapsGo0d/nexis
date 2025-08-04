@@ -24,6 +24,9 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Create debug directory for failed downloads
+mkdir -p /workspace/debug/failed_downloads
+
 # 2. Model Downloads
 echo "Running download manager..."
 /home/comfyuser/scripts/download_manager.sh
@@ -31,7 +34,14 @@ if [ $? -ne 0 ]; then
     echo "Download manager failed. Continuing without models."
 fi
 
-# 3. Start Services
+# 3. File Organization
+echo "Running file organizer..."
+/home/comfyuser/scripts/file_organizer.sh
+if [ $? -ne 0 ]; then
+    echo "File organizer failed. Continuing with existing files."
+fi
+
+# 4. Start Services
 echo "Running service manager..."
 /home/comfyuser/scripts/service_manager.sh &
 SERVICE_MANAGER_PID=$!

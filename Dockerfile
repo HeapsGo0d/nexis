@@ -1,81 +1,110 @@
-# Nexis Dockerfile
-# Base Image: NVIDIA PyTorch for CUDA 12.x
-FROM nvcr.io/nvidia/pytorch:24.04-py3 AS base
+# Build stage
+FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04 as build
 
-# Stage 1: Build Environment
-FROM base AS build
+# Environment variables for build optimization
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_PREFER_BINARY=1 \
+    PYTHONUNBUFFERED=1 \
+    CMAKE_BUILD_PARALLEL_LEVEL=8
 
-# System Dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    jq \
-    aria2 \
-    && rm -rf /var/lib/apt/lists/*
+# Install system packages with apt cache optimization
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+    software-properties-common && \
+    add-apt-repository ppa:deadsnakes/ppa && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+    python3.11 python3.11-venv python3.11-dev \
+    build-essential gcc ninja-build \
+    git curl jq aria2 git-lfs \
+    ffmpeg libgl1 libglib2.0-0 wget vim && \
+    ln -sf /usr/bin/python3.11 /usr/bin/python && \
+    ln -sf /usr/bin/python3.11 /usr/bin/python3 && \
+    rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN useradd -m -u 1000 -s /bin/bash comfyuser
-USER comfyuser
-WORKDIR /home/comfyuser
+# Create and activate virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy configuration
+# Install PyTorch with CUDA 12.8 support first (explicit version control)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install torch==2.5.1+cu128 torchvision==0.20.1+cu128 torchaudio==2.5.1+cu128 \
+    --index-url https://download.pytorch.org/whl/cu128 \
+    --no-deps && \
+    pip install numpy pillow requests tqdm psutil
+
+# Validate PyTorch CUDA 12.8 support
+RUN python -c "import torch; assert torch.cuda.is_available(), 'CUDA not available in PyTorch'; print(f'PyTorch CUDA version: {torch.version.cuda}')"
+
+# Install core Python tooling
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install packaging setuptools wheel
+
+# Install base requirements
+COPY config/requirements.txt /tmp/requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r /tmp/requirements.txt
+
+# Copy versions configuration
+COPY config/versions.conf /tmp/versions.conf
+
+# Clone and install ComfyUI manually to avoid dependency conflicts
+RUN . /tmp/versions.conf && \
+    mkdir -p /workspace && \
+    cd /workspace && \
+    git clone ${COMFYUI_REPO} && \
+    cd ComfyUI && \
+    git checkout ${COMFYUI_VERSION} && \
+    pip install --no-deps -r requirements.txt && \
+    pip install xformers --index-url ${XFORMERS_INDEX_URL}
+
+# Install ComfyUI-specific dependencies
+COPY config/comfyui-requirements.txt /tmp/comfyui-requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r /tmp/comfyui-requirements.txt
+
+# Production stage
+FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04 as production
+
+# Copy virtual environment from build stage
+COPY --from=build /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install runtime dependencies
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+    python3.11 python3.11-venv \
+    git curl jq aria2 git-lfs \
+    ffmpeg libgl1 libglib2.0-0 && \
+    ln -sf /usr/bin/python3.11 /usr/bin/python && \
+    ln -sf /usr/bin/python3.11 /usr/bin/python3 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create comfyuser and setup workspace
+RUN useradd -m comfyuser && \
+    mkdir -p /home/comfyuser/workspace && \
+    chown -R comfyuser:comfyuser /home/comfyuser
+
+# Copy workspace from build stage
+COPY --from=build --chown=comfyuser:comfyuser /workspace/ComfyUI /home/comfyuser/workspace/ComfyUI
+
+# Copy application files to home directory
+COPY --chown=comfyuser:comfyuser scripts/ /home/comfyuser/scripts/
+COPY --chown=comfyuser:comfyuser entrypoint.sh /home/comfyuser/
 COPY --chown=comfyuser:comfyuser config/ /home/comfyuser/config/
 
-# Extract versions from config file
-RUN source /home/comfyuser/config/versions.conf && \
-    echo "COMFYUI_VERSION=${COMFYUI_VERSION}" > /tmp/comfyui_version && \
-    echo "FILEBROWSER_VERSION=${FILEBROWSER_VERSION}" > /tmp/filebrowser_version
+# Make scripts executable
+RUN chmod +x /home/comfyuser/entrypoint.sh /home/comfyuser/scripts/*.sh
 
-# Install ComfyUI
-RUN COMFYUI_VERSION=$(cat /tmp/comfyui_version) && \
-    git clone --branch ${COMFYUI_VERSION} https://github.com/comfyanonymous/ComfyUI.git && \
-    cd ComfyUI && \
-    pip install --no-cache-dir -r requirements.txt
+# Verify ComfyUI installation and dependencies
+RUN /home/comfyuser/scripts/validate_dependencies.sh
 
-# Install FileBrowser
-RUN FILEBROWSER_VERSION=$(cat /tmp/filebrowser_version) && \
-    curl -fsSL https://github.com/filebrowser/filebrowser/releases/download/v${FILEBROWSER_VERSION}/linux-amd64-filebrowser.tar.gz | tar -C /home/comfyuser/ -xzvf -
-
-# Stage 2: Production Image
-FROM base
-
-# System Dependencies for model downloading
-RUN apt-get update && apt-get install -y \
-    git \
-    git-lfs \
-    curl \
-    aria2 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create non-root user
-RUN useradd -m -u 1000 -s /bin/bash comfyuser
-USER comfyuser
 WORKDIR /home/comfyuser
 
-# Copy from build stage
-COPY --from=build --chown=comfyuser:comfyuser /home/comfyuser/ComfyUI /home/comfyuser/ComfyUI
-COPY --from=build --chown=comfyuser:comfyuser /home/comfyuser/filebrowser /home/comfyuser/filebrowser
-COPY --chown=comfyuser:comfyuser scripts/ /home/comfyuser/scripts/
-COPY --chown=comfyuser:comfyuser entrypoint.sh /home/comfyuser/entrypoint.sh
-
-# Set up workspace
-RUN mkdir -p /home/comfyuser/workspace/models/checkpoints && \
-    mkdir -p /home/comfyuser/workspace/models/loras && \
-    mkdir -p /home/comfyuser/workspace/models/vae && \
-    mkdir -p /home/comfyuser/workspace/output && \
-    mkdir -p /home/comfyuser/workspace/input && \
-    ln -s /home/comfyuser/workspace/models /home/comfyuser/ComfyUI/models && \
-    ln -s /home/comfyuser/workspace/models/checkpoints /home/comfyuser/ComfyUI/models/checkpoints && \
-    ln -s /home/comfyuser/workspace/models/loras /home/comfyuser/ComfyUI/models/loras && \
-    ln -s /home/comfyuser/workspace/models/vae /home/comfyuser/ComfyUI/models/vae && \
-    ln -s /home/comfyuser/workspace/output /home/comfyuser/ComfyUI/output && \
-    ln -s /home/comfyuser/workspace/input /home/comfyuser/ComfyUI/input && \
-    chmod +x /home/comfyuser/entrypoint.sh && \
-    chmod +x /home/comfyuser/scripts/*.sh
-
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5m --retries=3 \
-  CMD curl --fail http://localhost:8188/system_stats || exit 1
+# Switch to comfyuser
+USER comfyuser
 
 # Entrypoint
 ENTRYPOINT ["/home/comfyuser/entrypoint.sh"]

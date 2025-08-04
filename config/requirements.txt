@@ -1,20 +1,26 @@
 # Pinned Python Dependencies for Nexis
-# Generated from a known-good environment to ensure reproducibility and security.
-# To update, regenerate this file with `pip-tools` or a similar tool.
+# PyTorch, torchvision, and torchaudio are installed separately in the Dockerfile
+# with explicit CUDA 12.1 support and version pinning to avoid conflicts.
+# ComfyUI is installed manually via git clone to ensure compatibility.
 
 certifi==2023.7.22 \
-    --hash=sha256:914f29f1c2d4a4a8f2b251752d9d3946f4333bd7458379b65e8a8b3acef136f0
+    --hash=sha256:92d6037539857d8206b8f6ae472e8b77db8058fec5937a1ef3f54304089edbb9
 charset-normalizer==3.3.2 \
-    --hash=sha256:f3c5554e8e5792d1821913b46931e3da4958a632a23c8b75e83bf669e068685c
+    --hash=sha256:90d558489962fd4918143277a773316e56c72da56ec7aa3dc3dbbe20fdfed15b
 idna==3.6 \
-    --hash=sha256:c23d2340d92a8c9c5d14ea6d4a99017a5a5143c3b923803a5a422818325411a3
+    --hash=sha256:c05567e9c24a6b9faaa835c4821bad0590fbb9d5779e7caa6e1cc4978e7eb24f
 requests==2.31.0 \
-    --hash=sha256:942c5a758f98d790eaed1a799985c25624673f6473359b43a4133851834de6a3
-torch==2.7.1 \
-    --hash=sha256:c33360cfc2edd976c2633b3b66c769bdcbbf0e0b6550606d188431c81e7dd1fc
-torchvision==0.22.1 \
-    --hash=sha256:699c2d70d33951187f6ed910ea05720b9b4aaac1dcc1135f53162ce7d42481d3
-torchaudio==2.7.1 \
-    --hash=sha256:9cbcdaab77ad9a73711acffee58f4eebc8a0685289a938a3fa6f660af9489aee
+    --hash=sha256:58cd2187c01e70e6e26505bca751777aa9f2ee0b7f4300988b709f44e013003f
 urllib3==2.0.7 \
-    --hash=sha256:5d13a93dca2122e3e5f96b111414b21a19316855f295f1fd98a331a02e1f3b8b
+    --hash=sha256:fdb6d215c776278489906c2f8916e6e7d4f5a9b602ccbcfdf7f016fc8da0596e
+
+# Core Python tooling
+packaging==23.2 \
+    --hash=sha256:8c491190033a9af7e1d931d0b5dacc2ef47509b34dd0de67ed209b5203fc88c7
+setuptools==69.0.3 \
+    --hash=sha256:385eb4edd9c9d5c17540511303e39a147ce2fc04bc55289c322b9e5904fe2c05
+wheel==0.42.0 \
+    --hash=sha256:177f9c9b0d45c47873b619f5b650346d632cdc35fb5e4d25058e09c9e581433d
+
+# Note: comfy-cli removed to avoid PyTorch dependency conflicts
+# ComfyUI is installed manually via git clone in the Dockerfile

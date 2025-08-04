@@ -1,19 +1,43 @@
 # Nexis: A Production-Grade ComfyUI RunPod Template
 
-Nexis is a lean, high-performance, and production-ready RunPod template for ComfyUI, optimized for modern NVIDIA GPUs like the RTX 4090 and 5090. It is a complete rebuild of the Phoenix project, focusing on simplicity, stability, and maintainability.
+Nexis is a lean, high-performance, and production-ready RunPod template for ComfyUI, optimized for modern NVIDIA GPUs like the RTX 4090 and 5090. Built on NVIDIA CUDA 12.8.1 base image with manually installed PyTorch, following proven patterns from the Phoenix project for optimal RunPod integration.
 
 ## Key Benefits
 
-- **Minimalist and Focused**: No debugging tools, testing modes, or non-essential features. Just ComfyUI and FileBrowser.
-- **High Performance**: Built on the official NVIDIA PyTorch image for optimal CUDA 12.x performance.
-- **Production-Ready**: Secure, reproducible, and reliable for real-world workloads.
-- **Easy to Maintain**: Simplified architecture with modular, single-purpose scripts.
+- **CUDA 12.8 Optimized**: Built on nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04 with manual PyTorch installation for optimal performance.
+- **Phoenix-Inspired API Integration**: Uses proven RunPod API patterns with GraphQL mutations and comprehensive error handling.
+- **Production-Ready**: Secure, reproducible, and reliable for real-world workloads with debug folder preservation.
+- **Easy to Maintain**: Simplified architecture with modular, single-purpose scripts inspired by Phoenix's successful approach.
 
 ## Quick Start: Deploying on RunPod
 
 1.  **Use the Template**: Deploy this repository directly as a RunPod template.
 2.  **Configure Environment Variables**: Set the required environment variables (see below).
 3.  **Start the Pod**: Your ComfyUI and FileBrowser instances will be available at the specified ports.
+
+## Template Deployment
+
+### Using the Template Script
+
+Deploy this template using the included script that follows Phoenix's proven RunPod API patterns:
+
+```bash
+# Set your RunPod API key
+export RUNPOD_API_KEY="your_api_key_here"
+
+# Run the template deployment script
+./template.sh
+```
+
+The script will:
+- Validate prerequisites (jq, curl, API key)
+- Create/update the RunPod template via GraphQL API
+- Include embedded documentation and working default values
+- Apply security-focused Docker arguments
+
+### Manual Deployment
+
+You can also deploy manually via the RunPod web interface using the specifications in `template.sh`.
 
 ## Port Configuration
 
@@ -26,80 +50,96 @@ Nexis is a lean, high-performance, and production-ready RunPod template for Comf
 
 | Variable              | Description                                       | Default |
 | --------------------- | ------------------------------------------------- | ------- |
-| `CIVITAI_CHECKPOINTS_TO_DOWNLOAD` | Comma-separated list of Civitai model URLs for checkpoints. | `""`      |
-| `CIVITAI_LORAS_TO_DOWNLOAD` | Comma-separated list of Civitai model URLs for LoRAs. | `""`      |
-| `CIVITAI_VAES_TO_DOWNLOAD` | Comma-separated list of Civitai model URLs for VAEs. | `""`      |
-| `HF_REPOS_TO_DOWNLOAD`   | Comma-separated list of HuggingFace repo IDs.     | `""`      |
-| `HUGGINGFACE_TOKEN`            | Your HuggingFace read token for private models.   | `""`      |
+| `CIVITAI_CHECKPOINTS_TO_DOWNLOAD` | Comma-separated list of CivitAI model IDs for checkpoints. | `"1569593,919063,450105"` |
+| `CIVITAI_LORAS_TO_DOWNLOAD` | Comma-separated list of CivitAI model IDs for LoRAs. | `"182404,445135,871108"` |
+| `CIVITAI_VAES_TO_DOWNLOAD` | Comma-separated list of CivitAI model IDs for VAEs. | `"1674314"` |
+| `HF_REPOS_TO_DOWNLOAD`   | Comma-separated list of HuggingFace repo IDs.     | `"black-forest-labs/FLUX.1-dev"` |
+| `HUGGINGFACE_TOKEN`            | Your HuggingFace read token (use RunPod Secrets).   | `"{{ RUNPOD_SECRET_huggingface.co }}"` |
+| `CIVITAI_TOKEN`              | Your CivitAI API token (use RunPod Secrets).        | `"{{ RUNPOD_SECRET_civitai.com }}"` |
 
 ### Advanced Configuration
 
 | Variable              | Description                                       | Default      |
 | --------------------- | ------------------------------------------------- | ------------ |
+| `DEBUG_MODE`          | Enable detailed logging for downloads and organization. | `false` |
 | `COMFYUI_FLAGS`       | Additional command-line flags for ComfyUI.        | `--bf16-unet` |
-| `FILEBROWSER_CONFIG`  | Path to a custom FileBrowser configuration file.  | `""`           |
-| `FB_USERNAME`         | Username for FileBrowser authentication.           | `""`           |
-| `FB_PASSWORD`         | Password for FileBrowser authentication.           | `""`           |
+| `FB_USERNAME`         | Username for FileBrowser authentication.           | `admin` |
+| `FB_PASSWORD`         | Password for FileBrowser (use RunPod Secrets).     | `"{{ RUNPOD_SECRET_FILEBROWSER_PASSWORD }}"` |
 
 ## Model Download Examples
 
-### Civitai Models
+### CivitAI Models
 
-The system supports downloading different types of Civitai models into their respective directories. All Civitai variables expect **full download URLs**, not model IDs.
+The system supports downloading CivitAI models using **model IDs** (not URLs). Model IDs are extracted from CivitAI URLs - for example, from `https://civitai.com/models/123456`, the model ID is `123456`.
 
-#### Checkpoints (Main Models)
-Set `CIVITAI_CHECKPOINTS_TO_DOWNLOAD` to a comma-separated list of Civitai download URLs:
-```
-CIVITAI_CHECKPOINTS_TO_DOWNLOAD="https://civitai.com/api/download/models/12345,https://civitai.com/api/download/models/67890"
-```
+#### Working Examples (Included as Defaults)
 
-#### LoRAs
-Set `CIVITAI_LORAS_TO_DOWNLOAD` to a comma-separated list of Civitai download URLs:
+The template includes these proven working model IDs:
+
+**Checkpoints:**
 ```
-CIVITAI_LORAS_TO_DOWNLOAD="https://civitai.com/api/download/models/11111,https://civitai.com/api/download/models/22222"
+CIVITAI_CHECKPOINTS_TO_DOWNLOAD="1569593,919063,450105"
 ```
 
-#### VAEs
-Set `CIVITAI_VAES_TO_DOWNLOAD` to a comma-separated list of Civitai download URLs:
+**LoRAs:**
 ```
-CIVITAI_VAES_TO_DOWNLOAD="https://civitai.com/api/download/models/33333,https://civitai.com/api/download/models/44444"
+CIVITAI_LORAS_TO_DOWNLOAD="182404,445135,871108"
 ```
 
-**Note**: Civitai URLs must be the full download URLs (e.g., `https://civitai.com/api/download/models/XXXXX`), not model IDs or page URLs.
+**VAEs:**
+```
+CIVITAI_VAES_TO_DOWNLOAD="1674314"
+```
+
+**Note**: Use model IDs (numbers), not full URLs. The system automatically constructs the proper download URLs using the CivitAI API.
 
 ### HuggingFace Models
 
-Set `HF_REPOS_TO_DOWNLOAD` to a comma-separated list of HuggingFace repository IDs. The script will use `git-lfs` to clone them.
-
+Set `HF_REPOS_TO_DOWNLOAD` to comma-separated repository IDs:
 ```
-HF_REPOS_TO_DOWNLOAD="stabilityai/stable-diffusion-xl-base-1.0,stabilityai/sdxl-vae"
-```
-
-**Note**: HuggingFace variables expect repository IDs (e.g., `username/model-name`), not full URLs.
-
-## FileBrowser Authentication
-
-FileBrowser supports basic authentication using username and password. To enable authentication:
-
-1.  Set the `FB_USERNAME` environment variable to your desired username.
-2.  Set the `FB_PASSWORD` environment variable to your desired password.
-
-Example:
-```
-FB_USERNAME=admin
-FB_PASSWORD=your_secure_password
+HF_REPOS_TO_DOWNLOAD="black-forest-labs/FLUX.1-dev,stabilityai/stable-diffusion-xl-base-1.0"
 ```
 
-**Security Notes**:
--   If either `FB_USERNAME` or `FB_PASSWORD` is not set, FileBrowser will run without authentication.
--   Use strong passwords and consider using RunPod's environment variable secrets for managing these credentials.
--   Authentication is applied to all FileBrowser access on port 8080.
+## RunPod Secrets Integration
 
-## Troubleshooting
+For security, tokens are configured to use RunPod Secrets. Set up these secrets in your RunPod account:
 
--   **502 Bad Gateway**: ComfyUI or FileBrowser may be starting up. Wait a few minutes and refresh.
--   **Download Failures**: Check your `HUGGINGFACE_TOKEN` and ensure the model URLs/IDs are correct.
--   **GPU Errors**: Ensure your pod is configured with a compatible NVIDIA GPU (RTX 4090/5090 series).
+- **`huggingface.co`**: Your HuggingFace read token
+- **`civitai.com`**: Your CivitAI API token  
+- **`FILEBROWSER_PASSWORD`**: Your desired FileBrowser password
+
+The template automatically references these secrets using the `{{ RUNPOD_SECRET_name }}` syntax.
+
+## Debug and Troubleshooting
+
+### Debug Mode
+
+Enable detailed logging by setting `DEBUG_MODE=true`. This provides:
+- Detailed download progress and file sizes
+- API request/response information
+- File organization summaries
+- Checksum verification details
+
+### Failed Downloads Debug Folder
+
+Files that fail to download or organize are preserved in `/workspace/debug/failed_downloads/` with the following structure:
+- `checkpoints/` - Failed checkpoint downloads
+- `loras/` - Failed LoRA downloads  
+- `vae/` - Failed VAE downloads
+- `huggingface/` - Failed HuggingFace model downloads
+
+This allows you to:
+- Inspect partial downloads
+- Retry failed downloads manually
+- Debug download issues without losing progress
+
+**Note**: Failed downloads are never automatically deleted, ensuring no data loss during troubleshooting.
+
+### Common Issues
+
+- **Download Failures**: Check your tokens and ensure the model IDs are correct. Use `DEBUG_MODE=true` for detailed error information.
+- **Model ID Issues**: Ensure CivitAI model IDs are numeric (e.g., `123456`) and HuggingFace repo IDs follow the `username/model-name` format.
+- **Template Deployment**: Ensure you have `jq` and `curl` installed, and your `RUNPOD_API_KEY` is set correctly.
 
 ## Performance Optimization (RTX 5090)
 
@@ -121,8 +161,7 @@ Nexis is a deliberate simplification of the Phoenix project. Here's what changed
 
 | Feature                       | Phoenix                                   | Nexis                                       | Rationale                                                              |
 | ----------------------------- | ----------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------- |
-| **Architecture**              | Monolithic entrypoint, complex scripts    | Modular, single-purpose scripts             | Improved maintainability and clarity.                                  |
-| **Debugging**                 | Extensive debugging, monitoring, forensics | Removed                                     | Focus on production stability; debugging should be done in development. |
-| **Entrypoint**                | 400+ lines, complex logic                 | <100 lines, simple orchestration            | Reduced complexity and improved reliability.                           |
-| **Dependencies**              | Loosely pinned                            | Pinned with hashes (`requirements.txt`)     | Enhanced security and reproducibility.                                 |
-| **Base Image**                | Older PyTorch image                       | Latest NVIDIA PyTorch image for CUDA 12.x   | Optimal performance and compatibility with modern GPUs.                |
+| **Architecture**              | Comprehensive with debugging features     | Simplified, production-focused              | Focus on core functionality while adopting Phoenix's proven patterns. |
+| **API Integration**           | Advanced GraphQL with comprehensive error handling | Adopts Phoenix's proven API patterns       | Leverages Phoenix's successful RunPod integration approach.            |
+| **Base Image**                | NVIDIA PyTorch image                      | NVIDIA CUDA 12.8.1 with manual PyTorch     | Optimal performance and compatibility with modern GPUs.                |
+| **Debug Features**            | Extensive forensic cleanup and monitoring | Simplified debug folder preservation        | Essential debugging without complexity overhead.                       |

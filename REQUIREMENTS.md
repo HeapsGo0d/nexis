@@ -23,10 +23,10 @@ The primary goal of Nexis is to create a production-grade, high-performance, and
 
 ## 3. Technical Specifications
 
-- **Base Image**: `nvcr.io/nvidia/pytorch:24.04-py3` (or newer compatible version).
+- **Base Image**: `nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04` (or newer compatible version).
 - **GPU Compatibility**: NVIDIA RTX 4090 / RTX 5090.
 - **CUDA Version**: 12.x.
-- **Python Version**: 3.10+.
+- **Python Version**: 3.11.
 - **Dependency Management**: Pinned versions via `requirements.txt` with SHA256 hashes.
 
 ## 4. RunPod Deployment
