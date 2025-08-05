@@ -54,17 +54,34 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Build-time config
 COPY config/versions.conf /tmp/versions.conf
 
-# ComfyUI clone + deps
+# ComfyUI clone + proper package structure setup
 RUN . /tmp/versions.conf && \
     mkdir -p /workspace && cd /workspace && \
     git clone "${COMFYUI_REPO}" && cd ComfyUI && git checkout "${COMFYUI_VERSION}" && \
+    \
+    # Ensure all directories that need to be Python packages have __init__.py
+    find . -type d -name "*.py" -prune -o -type d -exec test -f "{}/__init__.py" \; -prune -o -type d -print | \
+    while read -r dir; do \
+        if [ -n "$(find "$dir" -maxdepth 1 -name "*.py" -print -quit)" ]; then \
+            echo "Creating __init__.py in $dir"; \
+            touch "$dir/__init__.py"; \
+        fi; \
+    done && \
+    \
+    # Specifically ensure critical ComfyUI package directories have __init__.py
+    for pkg_dir in utils app comfy model_management nodes execution; do \
+        if [ -d "$pkg_dir" ] && [ ! -f "$pkg_dir/__init__.py" ]; then \
+            echo "Creating __init__.py in $pkg_dir"; \
+            touch "$pkg_dir/__init__.py"; \
+        fi; \
+    done && \
+    \
+    # Install ComfyUI requirements without dependencies to avoid conflicts
     pip install --no-deps -r requirements.txt && \
+    \
+    # Install xformers separately with specific index
     pip install xformers --index-url "${XFORMERS_INDEX_URL}" || \
     echo "xformers wheel not available; continuing"
-
-COPY config/comfyui-requirements.txt /tmp/comfyui-requirements.txt
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r /tmp/comfyui-requirements.txt
 
 # ──────────────────────────────────────────
 # Production stage
@@ -99,6 +116,9 @@ RUN useradd -m comfyuser && \
 
 # ComfyUI
 COPY --from=build --chown=comfyuser:comfyuser /workspace/ComfyUI /home/comfyuser/workspace/ComfyUI
+
+# Ensure utils is treated as a package *after* any overwrites
+RUN touch /home/comfyuser/workspace/ComfyUI/utils/__init__.py
 
 # Scripts and configs
 COPY --chown=comfyuser:comfyuser scripts/ /home/comfyuser/scripts/

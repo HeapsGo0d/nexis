@@ -2,9 +2,9 @@
 
 # Docker Hub username
 IMAGE_NAME="heapsgo0d/nexis"
-IMAGE_TAG="v1.0.1"
+IMAGE_TAG="v1.0.8.1"
 
-docker login
+
 
 docker buildx build --platform linux/amd64 -t "${IMAGE_NAME}:${IMAGE_TAG}" --load .
 

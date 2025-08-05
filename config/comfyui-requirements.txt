@@ -1,15 +1,16 @@
-# ComfyUI-specific dependencies
-# These are installed after the base requirements and PyTorch installation
-# to ensure compatibility with ComfyUI's requirements
-
 # ComfyUI additional dependencies
 opencv-python-headless==4.8.1.78
 scipy==1.11.4
 scikit-image==0.22.0
 
-# Note: xformers is installed separately with specific index URL in Dockerfile
-# Note: ComfyUI core requirements are installed from ComfyUI/requirements.txt
-
 # ─── Comfy-specific extras ─────────────────────────
 huggingface_hub==0.23.*
 transformers>=4.38.0,<5.0
+
+# Runtime helpers required by ComfyUI / k-diffusion
+trampoline==0.1.2
+aiohttp==3.9.*
+multidict==6.0.*
+yarl==1.9.*
+
+# (xformers is installed separately in the Dockerfile via its CUDA wheel)

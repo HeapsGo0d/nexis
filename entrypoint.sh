@@ -36,6 +36,18 @@ log "Starting Nexis Entrypoint..."
 log "Using Python: $(command -v python 2>/dev/null || echo 'not-in-PATH'), $($PYTHON -V 2>/dev/null || echo 'venv-python not found')"
 log "WORKSPACE: ${WORKSPACE}"
 
+# One-time runtime patch: mark utils/ as a package if missing
+# This is required because the ComfyUI installation process may overwrite the
+# directory and remove the __init__.py file needed for 'utils' to be a package.
+UTILS_INIT="${WORKSPACE}/ComfyUI/utils/__init__.py"
+if [ ! -f "$UTILS_INIT" ]; then
+  log "Patching missing ${UTILS_INIT}"
+  # Create an empty file, creating the directory if it doesn't exist
+  mkdir -p "$(dirname "$UTILS_INIT")"
+  touch "$UTILS_INIT"
+fi
+
+
 # (Optional) runtime dependency check – only when a CUDA driver is present
 # Decide whether to skip CUDA probe
 if ! nvidia-smi >/dev/null 2>&1; then
