@@ -1,92 +1,95 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-# Default configuration
+# ---------- Config (overridable by env) ----------
+PYTHON="${PYTHON:-/opt/venv/bin/python}"
+
+COMFYUI_DIR="${COMFYUI_DIR:-/home/comfyuser/workspace/ComfyUI}"
+COMFYUI_HOST="${COMFYUI_HOST:-0.0.0.0}"
+COMFYUI_PORT="${COMFYUI_PORT:-8188}"
+# Space-separated flags are allowed; will be split safely below
 COMFYUI_FLAGS="${COMFYUI_FLAGS:---disable-auto-launch --disable-metadata-preview}"
-COMFYUI_URL="http://localhost:8188"
-FILEBROWSER_URL="http://localhost:8080"
-HEALTH_CHECK_INTERVAL=30
+
+FILEBROWSER_BIN="${FILEBROWSER_BIN:-/home/comfyuser/filebrowser}"
+FILEBROWSER_ROOT="${FILEBROWSER_ROOT:-/home/comfyuser/workspace}"
+FILEBROWSER_HOST="${FILEBROWSER_HOST:-0.0.0.0}"
+FILEBROWSER_PORT="${FILEBROWSER_PORT:-8080}"
+
+COMFYUI_URL="http://127.0.0.1:${COMFYUI_PORT}"
+FILEBROWSER_URL="http://127.0.0.1:${FILEBROWSER_PORT}"
+
+HEALTH_CHECK_INTERVAL="${HEALTH_CHECK_INTERVAL:-30}"   # seconds between liveness checks
+HEALTH_RETRIES_START="${HEALTH_RETRIES_START:-30}"     # seconds to wait for initial readiness
+
 PID_COMFYUI=""
 PID_FILEBROWSER=""
 SHUTDOWN_REQUESTED=false
 
-# Signal handler for graceful shutdown
-handle_signal() {
-    echo "Shutting down services..."
-    SHUTDOWN_REQUESTED=true
-    kill -TERM $PID_COMFYUI $PID_FILEBROWSER 2>/dev/null
-}
-trap handle_signal SIGTERM SIGINT
+# ---------- Helpers ----------
+log() { echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] $*"; }
+require_cmd() { command -v "$1" >/dev/null 2>&1 || { log "Missing command: $1"; exit 127; }; }
+health_check() { curl -fsS -m 2 "$1" >/dev/null; }
 
-# Check if service is running
-check_service() {
-    local pid=$1
-    local url=$2
-    local name=$3
-    
-    if ! kill -0 $pid 2>/dev/null; then
-        echo "$name process not running (PID: $pid)"
-        return 1
-    fi
-    
-    if ! curl -s --head --fail "$url" >/dev/null; then
-        echo "$name health check failed (URL: $url)"
-        return 1
-    fi
-    
-    return 0
+wait_healthy() {
+  local url=$1 name=$2 retries=${3:-$HEALTH_RETRIES_START}
+  for ((i=1; i<=retries; i++)); do
+    if health_check "$url"; then return 0; fi
+    sleep 1
+  done
+  log "$name did not become healthy at $url in ${retries}s"
+  return 1
 }
 
-# Start a service with basic error handling
 start_service() {
-    local command=$1
-    local name=$2
-    local url=$3
-    
-    echo "Starting $name..."
-    if ! eval "$command &"; then
-        echo "Failed to start $name" >&2
-        return 1
-    fi
-    local pid=$!
-    
-    sleep 5
-    if check_service $pid "$url" "$name"; then
-        echo "$name started (PID: $pid)"
-        echo $pid
-        return 0
-    else
-        kill -9 $pid 2>/dev/null
-        return 1
-    fi
+  local name=$1; shift
+  local url=$1; shift
+  log "Starting $name..."
+  "$@" &
+  local pid=$!
+  log "$name pid=${pid}; waiting for readiness..."
+  if wait_healthy "$url" "$name"; then
+    log "$name ready at $url"
+    echo "$pid"
+    return 0
+  else
+    kill -9 "$pid" 2>/dev/null || true
+    return 1
+  fi
 }
 
-# Main execution
-PID_COMFYUI=$(start_service "python /home/comfyuser/ComfyUI/main.py --listen 0.0.0.0 --port 8188 ${COMFYUI_FLAGS}" "ComfyUI" "$COMFYUI_URL") || exit 1
-
-FILEBROWSER_CMD="/home/comfyuser/filebrowser -r /home/comfyuser/workspace -a 0.0.0.0 -p 8080"
-[ -n "$FB_USERNAME" ] && [ -n "$FB_PASSWORD" ] && FILEBROWSER_CMD="$FILEBROWSER_CMD --username $FB_USERNAME --password $FB_PASSWORD"
-
-PID_FILEBROWSER=$(start_service "$FILEBROWSER_CMD" "FileBrowser" "$FILEBROWSER_URL") || {
-    kill -TERM $PID_COMFYUI 2>/dev/null
-    exit 1
+# ---------- Signals ----------
+handle_signal() {
+  local sig="${1:-TERM}"
+  log "Received $sig; stopping services..."
+  SHUTDOWN_REQUESTED=true
+  [[ -n "$PID_COMFYUI" ]]    && kill -TERM "$PID_COMFYUI" 2>/dev/null || true
+  [[ -n "$PID_FILEBROWSER" ]]&& kill -TERM "$PID_FILEBROWSER" 2>/dev/null || true
 }
+trap 'handle_signal TERM' TERM
+trap 'handle_signal INT'  INT
 
-# Health monitoring loop
-while ! $SHUTDOWN_REQUESTED; do
-    check_service $PID_COMFYUI "$COMFYUI_URL" "ComfyUI" || {
-        echo "Restarting ComfyUI..."
-        PID_COMFYUI=$(start_service "python /home/comfyuser/ComfyUI/main.py --listen 0.0.0.0 --port 8188 ${COMFYUI_FLAGS}" "ComfyUI" "$COMFYUI_URL") || exit 1
-    }
-    
-    check_service $PID_FILEBROWSER "$FILEBROWSER_URL" "FileBrowser" || {
-        echo "Restarting FileBrowser..."
-        PID_FILEBROWSER=$(start_service "$FILEBROWSER_CMD" "FileBrowser" "$FILEBROWSER_URL") || exit 1
-    }
-    
-    sleep $HEALTH_CHECK_INTERVAL
-done
+# ---------- Pre-flight ----------
+require_cmd curl
+if ! command -v "$PYTHON" >/dev/null 2>&1; then
+  log "Python not found at $PYTHON"; exit 127
+fi
+if [[ ! -f "$COMFYUI_DIR/main.py" ]]; then
+  log "ComfyUI main.py not found at: $COMFYUI_DIR/main.py"; exit 1
+fi
 
-wait $PID_COMFYUI
-wait $PID_FILEBROWSER
-echo "Services stopped"
+# ---------- Start ComfyUI ----------
+# Split COMFYUI_FLAGS on spaces into an array safely (SC2206 ok here)
+# shellcheck disable=SC2206
+EXTRA_FLAGS=( $COMFYUI_FLAGS )
+COMFY_CMD=( "$PYTHON" "$COMFYUI_DIR/main.py" --listen "$COMFYUI_HOST" --port "$COMFYUI_PORT" )
+COMFY_CMD+=( "${EXTRA_FLAGS[@]}" )
+PID_COMFYUI=$(start_service "ComfyUI" "$COMFYUI_URL" "${COMFY_CMD[@]}") || exit 1
+
+# ---------- Start FileBrowser (optional) ----------
+if [[ -x "$FILEBROWSER_BIN" ]]; then
+  FB_CMD=( "$FILEBROWSER_BIN" -r "$FILEBROWSER_ROOT" -a "$FILEBROWSER_HOST" -p "$FILEBROWSER_PORT" )
+  if [[ -n "${FB_USERNAME:-}" && -n "${FB_PASSWORD:-}" ]]; then
+    FB_CMD+=( --username "$FB_USERNAME" --password "$FB_PASSWORD" )
+  fi
+  PID_FILEBROWSER=$(start_service "FileBrowser" "$FILEBROWSER_URL" "${FB_CMD[@]}") || {
+    log "FileB

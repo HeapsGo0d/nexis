@@ -1,135 +1,98 @@
-#!/bin/bash
-
-# Dependency Validation Script for Nexis
-# Validates PyTorch installation and ComfyUI compatibility
-
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 echo "=== Dependency Validation ==="
 
-# Check Python version
-echo "Checking Python version..."
-PYTHON_VERSION=$(python --version 2>&1 | cut -d' ' -f2)
-echo "Python version: $PYTHON_VERSION"
+# Prefer the venv interpreter; allow override via env
+PYTHON="${PYTHON:-/opt/venv/bin/python}"
+PIP="${PIP:-/opt/venv/bin/pip}"
 
-# Check PyTorch installation (with runtime GPU check)
-echo "Checking PyTorch installation..."
-python -c "
-import torch
-print(f'PyTorch version: {torch.__version__}')
-print(f'CUDA available: {torch.cuda.is_available()}')
-if torch.cuda.is_available():
-    print(f'CUDA version: {torch.version.cuda}')
-    print(f'GPU count: {torch.cuda.device_count()}')
-    for i in range(torch.cuda.device_count()):
-        print(f'GPU {i}: {torch.cuda.get_device_name(i)}')
-else:
-    print('INFO: CUDA not available at build time (expected in Docker build)')
-    print('CUDA availability will be verified at runtime')
-"
-
-# Check torchvision
-echo "Checking torchvision..."
-python -c "
-import torchvision
-print(f'Torchvision version: {torchvision.__version__}')
-"
-
-# Check torchaudio
-echo "Checking torchaudio..."
-python -c "
-import torchaudio
-print(f'Torchaudio version: {torchaudio.__version__}')
-"
-
-# Check xformers if available
-echo "Checking xformers..."
-python -c "
-try:
-    import xformers
-    print(f'Xformers version: {xformers.__version__}')
-except ImportError:
-    print('Xformers not installed or not available')
-" || echo "Xformers check failed"
-
-# Check ComfyUI directory structure
-echo "Checking ComfyUI installation..."
-COMFYUI_PATH="/home/comfyuser/workspace/ComfyUI"
-if [ -d "$COMFYUI_PATH" ]; then
-    echo "ComfyUI directory found at: $COMFYUI_PATH"
-    
-    # Check main.py exists
-    if [ -f "$COMFYUI_PATH/main.py" ]; then
-        echo "✓ main.py found"
-    else
-        echo "✗ main.py not found"
-        exit 1
-    fi
-    
-    # Check requirements.txt exists
-    if [ -f "$COMFYUI_PATH/requirements.txt" ]; then
-        echo "✓ requirements.txt found"
-    else
-        echo "✗ requirements.txt not found"
-    fi
-    
-    # Check models directory structure
-    for dir in models models/checkpoints models/loras models/vae; do
-        if [ -d "$COMFYUI_PATH/$dir" ]; then
-            echo "✓ $dir directory exists"
-        else
-            echo "✗ $dir directory missing"
-        fi
-    done
-    
-else
-    echo "✗ ComfyUI directory not found at: $COMFYUI_PATH"
-    exit 1
+if ! command -v "$PYTHON" >/dev/null 2>&1; then
+  echo "✗ Python not found at: $PYTHON"
+  echo "PATH: $PATH"
+  exit 127
 fi
 
-# Test ComfyUI import (basic import test only)
+echo "Checking Python..."
+echo "Python: $("$PYTHON" -V) at $(command -v "$PYTHON")"
+
+echo "Checking PyTorch..."
+"$PYTHON" - <<'PY'
+import os, torch
+print(f'PyTorch: {torch.__version__}')
+print(f'CUDA version in wheel: {torch.version.cuda}')
+skip = os.getenv("SKIP_CUDA_CHECK") == "1"
+if skip:
+    print("CUDA check skipped (SKIP_CUDA_CHECK=1)")
+else:
+    print(f'CUDA available: {torch.cuda.is_available()}')
+    if torch.cuda.is_available():
+        for i in range(torch.cuda.device_count()):
+            print(f'GPU {i}: {torch.cuda.get_device_name(i)}')
+PY
+
+
+echo "Checking torchvision..."
+"$PYTHON" - <<'PY'
+import torchvision
+print(f'Torchvision: {torchvision.__version__}')
+PY
+
+echo "Checking torchaudio..."
+"$PYTHON" - <<'PY'
+import torchaudio
+print(f'Torchaudio: {torchaudio.__version__}')
+PY
+
+echo "Checking xformers..."
+"$PYTHON" - <<'PY'
+try:
+    import xformers
+    print(f'Xformers: {xformers.__version__}')
+except Exception as e:
+    print(f'Xformers not available: {e}')
+PY
+
+COMFYUI_PATH="/home/comfyuser/workspace/ComfyUI"
+echo "Checking ComfyUI at ${COMFYUI_PATH}..."
+if [ -d "$COMFYUI_PATH" ]; then
+  echo "✓ directory exists"
+  [ -f "$COMFYUI_PATH/main.py" ] && echo "✓ main.py found" || { echo "✗ main.py missing"; exit 1; }
+  [ -f "$COMFYUI_PATH/requirements.txt" ] && echo "✓ requirements.txt found" || echo "✗ requirements.txt missing"
+  for d in models models/checkpoints models/loras models/vae; do
+    [ -d "$COMFYUI_PATH/$d" ] && echo "✓ $d present" || echo "✗ $d missing"
+  done
+else
+  echo "✗ ComfyUI directory missing"; exit 1
+fi
+
 echo "Testing ComfyUI import..."
 cd "$COMFYUI_PATH"
-python -c "
+"$PYTHON" - <<'PY'
 import sys
 sys.path.insert(0, '.')
 try:
-    import execution
-    import server
+    import execution, server
     print('✓ ComfyUI core modules import successfully')
 except ImportError as e:
     print(f'✗ ComfyUI import failed: {e}')
-    sys.exit(1)
-"
+    raise
+PY
 
-# Check for potential conflicts
-echo "Checking for potential dependency conflicts..."
-python -c "
+echo "Checking for dependency conflicts..."
+"$PYTHON" - <<'PY'
 import pkg_resources
-import sys
-
-# Check for duplicate packages
-packages = {}
-for dist in pkg_resources.working_set:
-    name = dist.project_name.lower()
-    if name in packages:
-        print(f'WARNING: Duplicate package {name}: {packages[name]} and {dist.version}')
+pkgs = {}
+for d in pkg_resources.working_set:
+    n = d.project_name.lower()
+    if n in pkgs:
+        print(f'WARNING duplicate package {n}: {pkgs[n]} and {d.version}')
     else:
-        packages[name] = dist.version
-
-# Check specific known conflicts
-conflicts = [
-    ('torch', 'tensorflow'),
-    ('torchvision', 'tensorflow'),
-]
-
-for pkg1, pkg2 in conflicts:
-    if pkg1 in packages and pkg2 in packages:
-        print(f'WARNING: Potential conflict between {pkg1} ({packages[pkg1]}) and {pkg2} ({packages[pkg2]})')
-
+        pkgs[n] = d.version
+for a,b in [('torch','tensorflow'),('torchvision','tensorflow')]:
+    if a in pkgs and b in pkgs:
+        print(f'WARNING potential conflict {a}({pkgs[a]}) vs {b}({pkgs[b]})')
 print('Dependency conflict check complete')
-"
+PY
 
 echo "=== Validation Complete ==="
-echo "All dependency checks passed successfully!"
-echo "Note: GPU functionality will be verified at runtime when container starts with GPU access"

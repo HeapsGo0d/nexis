@@ -75,11 +75,12 @@ class NexisDownloader:
                 self.log("No HuggingFace token provided", is_debug=True)
             
             try:
+                self.log(f"Executing command: {' '.join(cmd)}", is_debug=True)
                 if self.debug_mode:
-                    self.log(f"Running: {' '.join(cmd)}", is_debug=True)
                     result = subprocess.run(cmd, check=True)
                 else:
                     result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+                self.log(f"Subprocess finished with exit code {result.returncode}", is_debug=True)
                     
                 self.log(f"✅ Completed HF download: {repo_id}")
                 
@@ -189,10 +190,12 @@ class NexisDownloader:
         ]
         
         try:
+            self.log(f"Executing command: {' '.join(cmd)}", is_debug=True)
             if self.debug_mode:
                 self.log(f"Starting download with progress...", is_debug=True)
                 
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            self.log(f"Subprocess finished with exit code {result.returncode}", is_debug=True)
             
             self.log(f"✅ Download completed for {filename}")
             

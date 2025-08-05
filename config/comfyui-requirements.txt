@@ -9,3 +9,7 @@ scikit-image==0.22.0
 
 # Note: xformers is installed separately with specific index URL in Dockerfile
 # Note: ComfyUI core requirements are installed from ComfyUI/requirements.txt
+
+# ─── Comfy-specific extras ─────────────────────────
+huggingface_hub==0.23.*
+transformers>=4.38.0,<5.0

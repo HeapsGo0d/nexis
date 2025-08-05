@@ -2,7 +2,7 @@
 
 # Docker Hub username
 IMAGE_NAME="heapsgo0d/nexis"
-IMAGE_TAG="v1.0.0"
+IMAGE_TAG="v1.0.1"
 
 docker login
 
