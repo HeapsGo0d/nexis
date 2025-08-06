@@ -51,6 +51,11 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     sed -E 's/ --hash=sha256:[a-f0-9]+//g' /tmp/requirements.txt > /tmp/requirements.nohash.txt && \
     python -m pip install -r /tmp/requirements.nohash.txt
 
+# ComfyUI additional dependencies
+COPY config/comfyui-requirements.txt /tmp/comfyui-requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install -r /tmp/comfyui-requirements.txt
+
 # Build-time config
 COPY config/versions.conf /tmp/versions.conf
 

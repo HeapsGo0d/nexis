@@ -10,7 +10,11 @@ transformers>=4.38.0,<5.0
 # Runtime helpers required by ComfyUI / k-diffusion
 trampoline==0.1.2
 aiohttp==3.9.*
-multidict==6.0.*
-yarl==1.9.*
+multidict==6.6.3
+yarl==1.20.1
+propcache==0.3.2
+aiohappyeyeballs==2.6.1
+aiosignal==1.4.0
+frozenlist==1.7.0
 
 # (xformers is installed separately in the Dockerfile via its CUDA wheel)
