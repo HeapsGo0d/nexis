@@ -17,7 +17,7 @@ from urllib3.util.retry import Retry
 class NexisDownloader:
     def __init__(self, debug_mode=False):
         self.debug_mode = debug_mode
-        self.download_tmp_dir = Path("/workspace/downloads_tmp")
+        self.download_tmp_dir = Path("/home/comfyuser/workspace/downloads_tmp")
         self.download_tmp_dir.mkdir(exist_ok=True)
         self.session = self._create_session()
 

@@ -3,10 +3,10 @@
 echo "[ORGANIZER] Starting file organization..."
 
 # Create debug directory for failed downloads
-mkdir -p /workspace/debug/failed_downloads
+mkdir -p /home/comfyuser/workspace/debug/failed_downloads
 
 # Source directory where downloads are stored
-DOWNLOADS_TMP="/workspace/downloads_tmp"
+DOWNLOADS_TMP="/home/comfyuser/workspace/downloads_tmp"
 
 # Check if downloads directory exists
 if [ ! -d "$DOWNLOADS_TMP" ]; then
@@ -59,7 +59,7 @@ move_files() {
             echo "[ORGANIZER] Failed to move $filename, preserving in debug folder"
             
             # Create debug subdirectory structure
-            debug_subdir="/workspace/debug/failed_downloads/$category"
+            debug_subdir="/home/comfyuser/workspace/debug/failed_downloads/$category"
             mkdir -p "$debug_subdir"
             
             # Move to debug folder instead
@@ -109,7 +109,7 @@ move_huggingface_files() {
             echo "[ORGANIZER] Failed to move $model_name, preserving in debug folder"
             
             # Create debug subdirectory
-            debug_subdir="/workspace/debug/failed_downloads/huggingface"
+            debug_subdir="/home/comfyuser/workspace/debug/failed_downloads/huggingface"
             mkdir -p "$debug_subdir"
             
             # Move to debug folder
@@ -139,7 +139,7 @@ if [ "$DEBUG_MODE" = "true" ]; then
     echo "[ORGANIZER] - LoRAs: $(find /home/comfyuser/workspace/models/loras -type f 2>/dev/null | wc -l) files"
     echo "[ORGANIZER] - VAEs: $(find /home/comfyuser/workspace/models/vae -type f 2>/dev/null | wc -l) files"
     echo "[ORGANIZER] - HuggingFace models: $(find /home/comfyuser/workspace/models -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l) directories"
-    echo "[ORGANIZER] - Failed downloads in debug: $(find /workspace/debug/failed_downloads -type f 2>/dev/null | wc -l) files"
+    echo "[ORGANIZER] - Failed downloads in debug: $(find /home/comfyuser/workspace/debug/failed_downloads -type f 2>/dev/null | wc -l) files"
 fi
 
 echo "[ORGANIZER] File organization completed."

@@ -36,17 +36,49 @@ log "Starting Nexis Entrypoint..."
 log "Using Python: $(command -v python 2>/dev/null || echo 'not-in-PATH'), $($PYTHON -V 2>/dev/null || echo 'venv-python not found')"
 log "WORKSPACE: ${WORKSPACE}"
 
-# One-time runtime patch: mark utils/ as a package if missing
-# This is required because the ComfyUI installation process may overwrite the
-# directory and remove the __init__.py file needed for 'utils' to be a package.
-UTILS_INIT="${WORKSPACE}/ComfyUI/utils/__init__.py"
-if [ ! -f "$UTILS_INIT" ]; then
-  log "Patching missing ${UTILS_INIT}"
-  # Create an empty file, creating the directory if it doesn't exist
-  mkdir -p "$(dirname "$UTILS_INIT")"
-  touch "$UTILS_INIT"
-fi
+# ---- Comprehensive ComfyUI package structure fix ----
+COMFYUI_PATH="${WORKSPACE}/ComfyUI"
+log "Ensuring ComfyUI package structure..."
 
+if [ -d "$COMFYUI_PATH" ]; then
+    # Find all directories that contain Python files and ensure they have __init__.py
+    find "$COMFYUI_PATH" -type d | while read -r dir; do
+        # Check if directory contains any .py files
+        if [ -n "$(find "$dir" -maxdepth 1 -name "*.py" -print -quit)" ]; then
+            init_file="$dir/__init__.py"
+            if [ ! -f "$init_file" ]; then
+                log "Creating missing package init: $init_file"
+                touch "$init_file"
+            fi
+        fi
+    done
+    
+    # Explicitly handle critical directories that must be packages
+    for critical_dir in utils app comfy model_management nodes execution; do
+        full_path="$COMFYUI_PATH/$critical_dir"
+        if [ -d "$full_path" ]; then
+            init_file="$full_path/__init__.py"
+            if [ ! -f "$init_file" ]; then
+                log "Creating critical package init: $init_file"
+                touch "$init_file"
+            fi
+        fi
+    done
+    
+    # Handle nested critical directories
+    for nested_dir in utils/install_util app/frontend_management; do
+        parent_dir="$COMFYUI_PATH/$(dirname "$nested_dir")"
+        if [ -d "$parent_dir" ]; then
+            init_file="$parent_dir/__init__.py"
+            if [ ! -f "$init_file" ]; then
+                log "Creating nested package init: $init_file"
+                touch "$init_file"
+            fi
+        fi
+    done
+else
+    log "WARNING: ComfyUI directory not found at $COMFYUI_PATH"
+fi
 
 # (Optional) runtime dependency check – only when a CUDA driver is present
 # Decide whether to skip CUDA probe
@@ -56,7 +88,6 @@ fi
 
 /home/comfyuser/scripts/validate_dependencies.sh \
   || log "Dependency validation reported issues (continuing anyway)"
-
 
 # 1) System setup (fail hard if this fails)
 log "Running system setup..."

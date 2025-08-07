@@ -51,42 +51,46 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     sed -E 's/ --hash=sha256:[a-f0-9]+//g' /tmp/requirements.txt > /tmp/requirements.nohash.txt && \
     python -m pip install -r /tmp/requirements.nohash.txt
 
-# ComfyUI additional dependencies
-COPY config/comfyui-requirements.txt /tmp/comfyui-requirements.txt
-RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install -r /tmp/comfyui-requirements.txt
-
 # Build-time config
 COPY config/versions.conf /tmp/versions.conf
 
-# ComfyUI clone + proper package structure setup
+# ComfyUI clone + complete setup
 RUN . /tmp/versions.conf && \
     mkdir -p /workspace && cd /workspace && \
     git clone "${COMFYUI_REPO}" && cd ComfyUI && git checkout "${COMFYUI_VERSION}" && \
     \
-    # Ensure all directories that need to be Python packages have __init__.py
-    find . -type d -name "*.py" -prune -o -type d -exec test -f "{}/__init__.py" \; -prune -o -type d -print | \
-    while read -r dir; do \
+    # Install ComfyUI requirements first (this includes huggingface_hub)
+    pip install -r requirements.txt && \
+    \
+    # Install ComfyUI additional dependencies
+    pip install huggingface-cli && \
+    \
+    # Create __init__.py files for all directories containing Python files
+    find . -type d | while read -r dir; do \
         if [ -n "$(find "$dir" -maxdepth 1 -name "*.py" -print -quit)" ]; then \
-            echo "Creating __init__.py in $dir"; \
-            touch "$dir/__init__.py"; \
+            if [ ! -f "$dir/__init__.py" ]; then \
+                echo "Creating __init__.py in $dir"; \
+                touch "$dir/__init__.py"; \
+            fi; \
         fi; \
     done && \
     \
-    # Specifically ensure critical ComfyUI package directories have __init__.py
+    # Explicitly ensure critical directories have __init__.py
     for pkg_dir in utils app comfy model_management nodes execution; do \
-        if [ -d "$pkg_dir" ] && [ ! -f "$pkg_dir/__init__.py" ]; then \
-            echo "Creating __init__.py in $pkg_dir"; \
+        if [ -d "$pkg_dir" ]; then \
+            echo "Ensuring __init__.py in $pkg_dir"; \
             touch "$pkg_dir/__init__.py"; \
         fi; \
     done && \
     \
-    # Install ComfyUI requirements without dependencies to avoid conflicts
-    pip install --no-deps -r requirements.txt && \
-    \
     # Install xformers separately with specific index
     pip install xformers --index-url "${XFORMERS_INDEX_URL}" || \
     echo "xformers wheel not available; continuing"
+
+# Install ComfyUI additional requirements
+COPY config/comfyui-requirements.txt /tmp/comfyui-requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install -r /tmp/comfyui-requirements.txt
 
 # ──────────────────────────────────────────
 # Production stage
@@ -96,7 +100,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # 1. Copy self-contained venv
 COPY --from=build /opt/venv /opt/venv
-# 2. Copy std-lib directory required by the venv’s interpreter
+# 2. Copy std-lib directory required by the venv's interpreter
 COPY --from=build /usr/lib/python3.11 /usr/lib/python3.11
 
 ENV VIRTUAL_ENV=/opt/venv
@@ -114,16 +118,37 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         > /etc/ld.so.conf.d/cuda.conf && ldconfig && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# App user + workspace
+# App user + workspace with proper permissions
 RUN useradd -m comfyuser && \
     mkdir -p /home/comfyuser/workspace && \
-    chown -R comfyuser:comfyuser /home/comfyuser
+    mkdir -p /workspace && \
+    chown -R comfyuser:comfyuser /home/comfyuser && \
+    chown -R comfyuser:comfyuser /workspace
 
 # ComfyUI
 COPY --from=build --chown=comfyuser:comfyuser /workspace/ComfyUI /home/comfyuser/workspace/ComfyUI
 
-# Ensure utils is treated as a package *after* any overwrites
-RUN touch /home/comfyuser/workspace/ComfyUI/utils/__init__.py
+# Ensure all critical package directories have __init__.py files
+RUN find /home/comfyuser/workspace/ComfyUI -type d | while read -r dir; do \
+        if [ -n "$(find "$dir" -maxdepth 1 -name "*.py" -print -quit)" ]; then \
+            if [ ! -f "$dir/__init__.py" ]; then \
+                echo "Runtime: Creating __init__.py in $dir"; \
+                touch "$dir/__init__.py"; \
+            fi; \
+        fi; \
+    done && \
+    \
+    # Double-check critical directories
+    for pkg_dir in utils app comfy model_management nodes execution; do \
+        full_path="/home/comfyuser/workspace/ComfyUI/$pkg_dir"; \
+        if [ -d "$full_path" ]; then \
+            echo "Runtime: Ensuring __init__.py in $full_path"; \
+            touch "$full_path/__init__.py"; \
+        fi; \
+    done && \
+    \
+    # Fix ownership
+    chown -R comfyuser:comfyuser /home/comfyuser/workspace/ComfyUI
 
 # Scripts and configs
 COPY --chown=comfyuser:comfyuser scripts/ /home/comfyuser/scripts/

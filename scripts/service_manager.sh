@@ -19,7 +19,7 @@ COMFYUI_URL="http://127.0.0.1:${COMFYUI_PORT}"
 FILEBROWSER_URL="http://127.0.0.1:${FILEBROWSER_PORT}"
 
 HEALTH_CHECK_INTERVAL="${HEALTH_CHECK_INTERVAL:-30}"   # seconds between liveness checks
-HEALTH_RETRIES_START="${HEALTH_RETRIES_START:-30}"     # seconds to wait for initial readiness
+HEALTH_RETRIES_START="${HEALTH_RETRIES_START:-60}"     # seconds to wait for initial readiness (increased)
 
 PID_COMFYUI=""
 PID_FILEBROWSER=""
@@ -28,14 +28,28 @@ SHUTDOWN_REQUESTED=false
 # ---------- Helpers ----------
 log() { echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] $*"; }
 require_cmd() { command -v "$1" >/dev/null 2>&1 || { log "Missing command: $1"; exit 127; }; }
-health_check() { curl -fsS -m 2 "$1" >/dev/null; }
+health_check() { curl -fsS -m 5 "$1" >/dev/null 2>&1; }
 
 wait_healthy() {
   local url=$1 name=$2 retries=${3:-$HEALTH_RETRIES_START}
-  for ((i=1; i<=retries; i++)); do
-    if health_check "$url"; then return 0; fi
+  local attempt=0
+  log "Waiting for $name to become healthy at $url (max ${retries}s)..."
+  
+  while [ $attempt -lt $retries ]; do
+    if health_check "$url"; then 
+      log "$name is healthy!"
+      return 0
+    fi
+    
+    # Show progress every 10 seconds
+    if [ $((attempt % 10)) -eq 0 ] && [ $attempt -gt 0 ]; then
+      log "Still waiting for $name... (${attempt}/${retries}s)"
+    fi
+    
     sleep 1
+    attempt=$((attempt + 1))
   done
+  
   log "$name did not become healthy at $url in ${retries}s"
   return 1
 }
@@ -43,15 +57,20 @@ wait_healthy() {
 start_service() {
   local name=$1; shift
   local url=$1; shift
-  log "Starting $name..."
+  log "Starting $name with command: $*"
+  
+  # Start the service in background
   "$@" &
   local pid=$!
-  log "$name pid=${pid}; waiting for readiness..."
+  log "$name started with pid=$pid"
+  
+  # Wait for it to become healthy
   if wait_healthy "$url" "$name"; then
     log "$name ready at $url"
     echo "$pid"
     return 0
   else
+    log "Failed to start $name - killing process"
     kill -9 "$pid" 2>/dev/null || true
     return 1
   fi
@@ -74,7 +93,27 @@ if ! command -v "$PYTHON" >/dev/null 2>&1; then
   log "Python not found at $PYTHON"; exit 127
 fi
 if [[ ! -f "$COMFYUI_DIR/main.py" ]]; then
-  log "ComfyUI main.py not found at: $COMFYUI_DIR/main.py"; exit 1
+  log "ComfyUI main.py not found at: $COMFYUI_DIR/main.py"
+  log "Directory contents:"
+  ls -la "$COMFYUI_DIR" || true
+  exit 1
+fi
+
+# Test ComfyUI import before starting
+log "Testing ComfyUI import..."
+cd "$COMFYUI_DIR"
+if ! "$PYTHON" -c "
+import sys
+sys.path.insert(0, '.')
+try:
+    import execution, server
+    print('ComfyUI imports successful')
+except ImportError as e:
+    print(f'ComfyUI import failed: {e}')
+    sys.exit(1)
+"; then
+  log "ComfyUI import test failed - cannot start service"
+  exit 1
 fi
 
 # ---------- Start ComfyUI ----------
@@ -83,7 +122,12 @@ fi
 EXTRA_FLAGS=( $COMFYUI_FLAGS )
 COMFY_CMD=( "$PYTHON" "$COMFYUI_DIR/main.py" --listen "$COMFYUI_HOST" --port "$COMFYUI_PORT" )
 COMFY_CMD+=( "${EXTRA_FLAGS[@]}" )
-PID_COMFYUI=$(start_service "ComfyUI" "$COMFYUI_URL" "${COMFY_CMD[@]}") || exit 1
+
+log "Starting ComfyUI..."
+PID_COMFYUI=$(start_service "ComfyUI" "$COMFYUI_URL" "${COMFY_CMD[@]}") || {
+  log "Failed to start ComfyUI"
+  exit 1
+}
 
 # ---------- Start FileBrowser (optional) ----------
 if [[ -x "$FILEBROWSER_BIN" ]]; then
@@ -92,4 +136,36 @@ if [[ -x "$FILEBROWSER_BIN" ]]; then
     FB_CMD+=( --username "$FB_USERNAME" --password "$FB_PASSWORD" )
   fi
   PID_FILEBROWSER=$(start_service "FileBrowser" "$FILEBROWSER_URL" "${FB_CMD[@]}") || {
-    log "FileB
+    log "FileBrowser startup failed, but continuing..."
+  }
+else
+  log "FileBrowser binary not found at $FILEBROWSER_BIN, skipping..."
+fi
+
+# ---------- Health monitoring loop ----------
+log "Service management started. Monitoring health every ${HEALTH_CHECK_INTERVAL}s..."
+while ! $SHUTDOWN_REQUESTED; do
+  # Check ComfyUI
+  if [[ -n "$PID_COMFYUI" ]] && kill -0 "$PID_COMFYUI" 2>/dev/null; then
+    if ! health_check "$COMFYUI_URL"; then
+      log "ComfyUI health check failed but process is running - this may be temporary"
+    fi
+  else
+    log "ComfyUI process has died. Shutting down."
+    exit 1
+  fi
+  
+  # Check FileBrowser (if running)
+  if [[ -n "$PID_FILEBROWSER" ]] && kill -0 "$PID_FILEBROWSER" 2>/dev/null; then
+    if ! health_check "$FILEBROWSER_URL"; then
+      log "FileBrowser health check failed but process is running"
+    fi
+  elif [[ -n "$PID_FILEBROWSER" ]]; then
+    log "FileBrowser process has died, but continuing without it..."
+    PID_FILEBROWSER=""
+  fi
+  
+  sleep "$HEALTH_CHECK_INTERVAL"
+done
+
+log "Service manager shutting down normally"

@@ -2,7 +2,7 @@
 
 # Docker Hub username
 IMAGE_NAME="heapsgo0d/nexis"
-IMAGE_TAG="v1.0.8.5"
+IMAGE_TAG="v1.0.8.53"
 
 
 
